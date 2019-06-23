@@ -1,14 +1,16 @@
 # frozen_string_literal: true
 
+require "mimi/struct/version"
+
 module Mimi
   #
-  # A Struct that can be initialized from a Hash or another Struct.
+  # A Struct that can be initialized from a Hash or a PORO.
   #
-  # A Struct declares its attributes and rules, which define how its attrubutes
+  # A Struct declares its attributes and rules, which define how its attributes
   # are mapped from input data.
   #
-  class Struct < ::Struct
-
+  class Struct
+    #
     # Default attribute mapper
     #
     # Maps value of the source attribute to the target attribute.
@@ -16,9 +18,9 @@ module Mimi
     #
     DEFAULT_ATTRIBUTE_MAPPER = -> (o, params) do
       if params.key?(:default)
-        o.to_h.key?(params[:from]) || call_as_proc(params[:default], o, params)
+        o.respond_to?(params[:from]) || call_as_proc(params[:default], o, params)
       else
-        o[params[:from]]
+        o.send(params[:from])
       end
     end
 
@@ -27,7 +29,29 @@ module Mimi
     # Skips the attribute if the source attribute is not set.
     #
     DEFAULT_IF_FOR_OPTIONAL = -> (o, params) do
-      o.to_h.key?(params[:from])
+      o.respond_to?(params[:from])
+    end
+
+    # Creates a mapped Struct object from another object
+    #
+    # @param source [Hash,Object]
+    #
+    def initialize(source)
+      source = ::Struct.new(*source.to_h.keys).new(*source.to_h.values) if source.is_a?(Hash)
+      @attributes = self.class.transform_attributes(source)
+      @attributes.keys.each do |attribute_name|
+        define_singleton_method(attribute_name) { self[attribute_name] }
+      end
+    rescue StandardError => e
+      raise e.class, "Failed to construct #{self.class}: #{e}", e.backtrace
+    end
+
+    # Fetches an attribute with given name
+    #
+    # @param name [Symbol]
+    #
+    def [](name)
+      @attributes[name.to_sym]
     end
 
     # Presents this Struct as a Hash, deeply converting nested Structs
@@ -35,7 +59,7 @@ module Mimi
     # @return [Hash]
     #
     def to_h
-      super.map do |k, v|
+      attributes.map do |k, v|
         [k, self.class.value_to_h(v)]
       end.to_h
     end
@@ -45,7 +69,7 @@ module Mimi
     # @return [Hash]
     #
     def attributes
-      to_h
+      @attributes
     end
 
     # An attribute definition
@@ -109,7 +133,7 @@ module Mimi
       if obj_or_collection.is_a?(Array)
         obj_or_collection.map { |o| self << o }
       else
-        transform(obj_or_collection)
+        new(obj_or_collection)
       end
     end
 
@@ -141,36 +165,19 @@ module Mimi
       @group_params ||= [{}]
     end
 
-    # Creates a Struct instance from given parameters
-    #
-    # @param source [Struct,Hash]
-    #
-    private_class_method def self.transform(source)
-      if source.is_a?(Struct)
-        # do nothing
-      elsif source.is_a?(Hash)
-        source = Struct.new(*source.to_h.keys).new(*source.to_h.values)
-      else
-        raise ArgumentError, "Struct or Hash is expected as source"
-      end
-      attributes = transform_attributes(source)
-      new(*attributes.keys).new(*attributes.values)
-    rescue StandardError => e
-      raise "Failed to construct #{self}: #{e}"
-    end
-
     # Transform attributes according to rules
     #
     # @param source [Struct]
     # @return [Hash] map of attribute name -> value
     #
-    private_class_method def self.transform_attributes(source)
-      attribute_definitions.map do |k, params|
+    def self.transform_attributes(source)
+      result = attribute_definitions.map do |k, params|
         if params[:if].is_a?(Proc)
           next unless call_as_proc(params[:if], source, params)
         end
         [k, transform_single_attribute(source, k, params)]
       end.compact.to_h
+      result
     end
 
     # Transforms a single attribute value according to rules passed as params
@@ -183,7 +190,7 @@ module Mimi
     private_class_method def self.transform_single_attribute(source, key, params)
       return call_as_proc(params[:using], source, params) if params[:using].is_a?(Proc)
       if params[:using].is_a?(Class) && params[:using] < Mimi::Struct
-        return params[:using] << source[params[:from]]
+        return params[:using] << source.send(params[:from])
       end
       raise "unexpected :using type: #{params[:using].class}"
     rescue StandardError => e
@@ -220,5 +227,3 @@ module Mimi
     end
   end # class Struct
 end # module Mimi
-
-require "mimi/struct/version"
