@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "mimi/struct/version"
+require "mimi/core"
 
 module Mimi
   #
@@ -9,7 +9,7 @@ module Mimi
   # A Struct declares its attributes and rules, which define how its attributes
   # are mapped from input data.
   #
-  class Struct
+  class Struct < Mimi::Core::Struct
     #
     # Default attribute mapper
     #
@@ -37,11 +37,9 @@ module Mimi
     # @param source [Hash,Object]
     #
     def initialize(source)
-      source = ::Struct.new(*source.to_h.keys).new(*source.to_h.values) if source.is_a?(Hash)
-      @attributes = self.class.transform_attributes(source)
-      @attributes.keys.each do |attribute_name|
-        define_singleton_method(attribute_name) { self[attribute_name] }
-      end
+      source = Mimi::Core::Struct.new(source) if source.is_a?(Hash)
+      attributes = self.class.transform_attributes(source)
+      super(attributes)
     rescue StandardError => e
       raise e.class, "Failed to construct #{self.class}: #{e}", e.backtrace
     end
@@ -227,3 +225,5 @@ module Mimi
     end
   end # class Struct
 end # module Mimi
+
+require "mimi/struct/version"
