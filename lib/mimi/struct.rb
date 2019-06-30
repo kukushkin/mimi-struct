@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "mimi/core"
+require "mimi/struct/version"
 
 module Mimi
   #
@@ -10,6 +11,8 @@ module Mimi
   # are mapped from input data.
   #
   class Struct < Mimi::Core::Struct
+    include Mimi::StructVersion
+
     #
     # Default attribute mapper
     #
@@ -17,10 +20,16 @@ module Mimi
     # Calculates a default value if the source attribute is not set.
     #
     DEFAULT_ATTRIBUTE_MAPPER = -> (o, params) do
-      if params.key?(:default)
-        o.respond_to?(params[:from]) || call_as_proc(params[:default], o, params)
-      else
+      source_attr_set = o.respond_to?(params[:from]) && !o.send(params[:from]).nil?
+      if source_attr_set || !params.key?(:default)
         o.send(params[:from])
+      else
+        # source attr is not set AND there is :default
+        if params[:default].is_a?(Proc)
+          call_as_proc(params[:default], o, params) # default as proc
+        else
+          params[:default] # default as literal value
+        end
       end
     end
 
@@ -32,24 +41,20 @@ module Mimi
       o.respond_to?(params[:from])
     end
 
+    # General Mimi::Struct error
+    #
+    class Error < StandardError; end
+
     # Creates a mapped Struct object from another object
     #
     # @param source [Hash,Object]
     #
-    def initialize(source)
+    def initialize(source = {})
       source = Mimi::Core::Struct.new(source) if source.is_a?(Hash)
       attributes = self.class.transform_attributes(source)
       super(attributes)
     rescue StandardError => e
       raise e.class, "Failed to construct #{self.class}: #{e}", e.backtrace
-    end
-
-    # Fetches an attribute with given name
-    #
-    # @param name [Symbol]
-    #
-    def [](name)
-      @attributes[name.to_sym]
     end
 
     # Presents this Struct as a Hash, deeply converting nested Structs
@@ -84,7 +89,7 @@ module Mimi
     #
     def self.attribute(name, params = {})
       name = name.to_sym
-      raise "Attribute '#{name}' is already declared" if attribute_definitions.key?(name)
+      raise ArgumentError, "Attribute '#{name}' is already declared" if attribute_definitions.key?(name)
       defaults = group_params.reduce(:merge).merge(
         from: name,
         using: DEFAULT_ATTRIBUTE_MAPPER
@@ -192,7 +197,7 @@ module Mimi
       end
       raise "unexpected :using type: #{params[:using].class}"
     rescue StandardError => e
-      raise "Failed to transform attribute :#{key} : #{e}"
+      raise Error, "Failed to transform attribute :#{key} : #{e}"
     end
 
     # Calls a lambda as a proc, not caring about the number of arguments
@@ -225,5 +230,3 @@ module Mimi
     end
   end # class Struct
 end # module Mimi
-
-require "mimi/struct/version"

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Mimi
-  class Struct
+  module StructVersion
     VERSION = "1.0.0"
   end
 end
