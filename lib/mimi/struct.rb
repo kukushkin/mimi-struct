@@ -11,7 +11,7 @@ module Mimi
   # are mapped from input data.
   #
   class Struct < Mimi::Core::Struct
-    include Mimi::StructVersion
+    VERSION = Mimi::Struct_VERSION
 
     #
     # Default attribute mapper

@@ -5,7 +5,7 @@ require "mimi/struct/version"
 
 Gem::Specification.new do |spec|
   spec.name          = "mimi-struct"
-  spec.version       = Mimi::StructVersion::VERSION
+  spec.version       = Mimi::Struct_VERSION
   spec.authors       = ["Alex Kukushkin"]
   spec.email         = ["alex@kukushk.in"]
 
