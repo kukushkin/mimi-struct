@@ -140,14 +140,23 @@ module Mimi
       end
     end
 
-    # Returns a Hash of attribute definitions
+    # Returns a Hash of attribute definitions defined in this class
+    # and all its ancestors
     #
     # @return [Hash]
     #
-    private_class_method def self.attribute_definitions
-      @attribute_definitions ||= {}
-      # merge with base class
-      defined?(super) ? super.merge(@attribute_definitions) : @attribute_definitions
+    # NOTE: this is a _protected_ class method
+    #
+    class << self
+      protected
+      def attribute_definitions
+        @attribute_definitions ||= {}
+        # merge with superclass attribute definitions
+        superclass_attribute_definitions =
+          superclass < Mimi::Struct ? superclass.attribute_definitions : {}
+        superclass_attribute_definitions.merge(@attribute_definitions)
+        # defined?(super) ? super.merge(@attribute_definitions) : @attribute_definitions
+      end
     end
 
     # Adds a new attribute definition
